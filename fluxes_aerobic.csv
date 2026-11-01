@@ -1,0 +1,8 @@
+reaction,metabolite,formula,C,flux
+EX_o2_e,o2_e,O2,0,-21.799492655998886
+EX_glc__D_e,glc__D_e,C6H12O6,6,-10.0
+EX_nh4_e,nh4_e,H4N,0,-4.765319193197444
+EX_pi_e,pi_e,HO4P,0,-3.214895047684769
+EX_h_e,h_e,H,0,17.530865429786523
+EX_co2_e,co2_e,CO2,1,22.809833310205086
+EX_h2o_e,h2o_e,H2O,0,29.175827135565836
