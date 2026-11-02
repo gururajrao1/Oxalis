@@ -168,6 +168,10 @@ body {
 .card p { max-width: 78ch; }
 .muted { color: var(--muted); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* Escher viewport: fixed height, light canvas (the map brings its own
+   palette), framed in theme line color. */
+#escher-box { height: 640px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+#escher-map { width: 100%; height: 100%; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
 
 /* ---------- readouts ---------- */

@@ -240,6 +240,53 @@
   `== "optimal"`.
 - Files: exp24_strain_milp.py, strain_milp.json; API: /api/strain_milp
 
+## Exp 25: enzyme-constrained E. coli (eciML1515, GECKO) + protein cap
+- Load: SysBioChalmers ecModels eciML1515.xml (10.9 MB SBML, 6084 rxns).
+  BUGFIX (cobra): default SBML import applies F_REPLACE, which unescapes
+  GECKO `__32__` (ascii-32) into real spaces -> optlang rejects the ids.
+  Load with f_replace=None (raw R_/M_/G_ ids).
+- Setup traps: GECKO splits reversibles into forward + _REV twins (uptake
+  via _REV upper bounds); model ships with 100+ medium uptakes OPEN (mu
+  74.9 on air) -> close all R_EX_*_REV except a mineral list; cobra
+  auto-adds R_prot_*_exchange (0,1000) for boundary enzyme mets, so the
+  shipped file is enzyme-unconstrained (reproduces iML1515 to 4 decimals).
+- sMOMENT-lite cap: sum(flux*coeff*MW) <= P over 2560 enzyme arms, uniform
+  MW 40 kDa. P<=0.15: mu 0.564 (= measured 0.57) with acetate overflow 11.5
+  emerging purely from enzyme cost (plain FBA: ac=0). P<=0.2: mu 0.704,
+  ac 5.9 (~V&P 0.68). Anaerobic q18.5 P<=0.15: mu 0.337, trio preserved.
+  P<=0.05 over-constrains (mu 0.20, ac 17).
+- PERF (mine): incremental sympy `sum()` over 6000 flux terms is O(n^2)
+  (hung 15+ min); one Add(*terms) call builds it in seconds. Model loads
+  once per process (10 MB parse ~2 min); sims reuse it via bound resets.
+- Honest limits: uniform MW + fitted (not measured) P_total; per-enzyme
+  MW/proteomics (Schmidt 2016) would pin both. Anaerobic P<=0.1 secretes
+  lactate 12.5 (protein-efficient reshuffle; mechanism open).
+- Files: exp25_econ.py, ec_compare.csv (API: /api/data/ec_compare);
+  eciML1515.xml streams to temp cache on demand (round 5, not vendored)
+
+## App round 5: API-first models (zero vendored weight)
+- BiGG API streams iML1515 JSON (2.9 MB) to OS temp cache on first use;
+  gene_names + genome solves use it. `git rm iML1515.json`; eciML1515.xml
+  (10.4 MB) + web/vendor (0.8 MB) deleted from disk; Escher lib + map load
+  from CDN at page-open. ~14 MB freed; temp cache evictable anytime.
+- Verified: gene_names + core fluxes over live server; 29/29 datasets green.
+- Files: server.py (cached_model_file), exp25_econ.py (ec_xml_path),
+  web/app.js (ESCHER_CDN/MAP)
+
+## App round 4: Flux map page (Escher) + /api/solve/fluxes
+- Vendored escher.min.js 1.8.2 (self-contained UMD, d3 bundled) + BiGG
+  e_coli_core map (95 rxns) under web/vendor/ (served by StaticFiles).
+- UI: Flux map page (presets aerobic/anaerobic/V&P x2, optional core gene
+  KO select, growth/status/drawn-reaction metrics) in a light viewport card
+  inside the bench-dark theme. New /api/solve/fluxes (full BiGG-id vector;
+  fresh model copy per request, KO-safe).
+- Verified: node --check clean; endpoint payload strict-JSON; vendor + map
+  HTTP 200 over a live server; anaerobic flux values correct. In-browser
+  Escher render NOT exercised here (no browser on this machine) — open the
+  Flux map page and press Draw map to confirm.
+- Files: server.py (/api/solve/fluxes), web/app.js (pFluxmap), web/styles.css
+  (#escher-box), web/vendor/
+
 ## TODO (next)
 - Same-medium full time-course (OD/glc/ac at several time points) to turn
   the 4-feature fit into a real curve fit.

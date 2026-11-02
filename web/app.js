@@ -8,6 +8,7 @@ const NAV = [
   ["o2lab", "O2 sweep lab"],
   ["sampling", "Sampling"],
   ["dfba", "Batch culture"],
+  ["fluxmap", "Flux map"],
   ["genome", "Genome scale"],
   ["network", "Network hubs"],
   ["sec", "Validation"],
@@ -641,7 +642,83 @@ check:   gross CO2 ${fmt(a.co2_reactions.filter(x => x.co2 > 0 && x.reaction !==
   });
 }
 
-const PAGES = { guide: pGuide, overview: pOverview, aerana: pAerana, carbon: pCarbon, o2lab: pO2lab, sampling: pSampling, dfba: pDfba, genome: pGenome, network: pNetwork, anchor: pAnchor, ko: pKO, deletions: pDeletions, pfba: pPfba, subs: pSubs, repro: pRepro };
+let _escherLib = null, _escherMap = null, _escherBuilder = null;
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[data-vendor="${src}"]`)) return res();
+    const s = document.createElement("script");
+    s.src = src; s.dataset.vendor = src;
+    s.onload = res; s.onerror = () => rej(new Error(`failed to load ${src}`));
+    document.head.appendChild(s);
+  });
+}
+// API-first: Escher library + map stream from CDN on first use, nothing
+// vendored (keeps the repo light).
+const ESCHER_CDN = "https://cdn.jsdelivr.net/npm/escher@1.8.2/dist/escher.min.js";
+const ESCHER_MAP = "https://escher.github.io/1-0-0/2/maps/Escherichia%20coli/e_coli_core.Core%20metabolism.json";
+async function escherReady() {
+  if (!_escherLib) {
+    await loadScript(ESCHER_CDN);
+    _escherLib = window.escher;
+    if (!_escherLib || !_escherLib.Builder) throw new Error("Escher library failed to initialise");
+  }
+  if (!_escherMap) {
+    const r = await fetch(ESCHER_MAP);
+    if (!r.ok) throw new Error("map download failed");
+    _escherMap = await r.json();
+  }
+  return _escherLib;
+}
+const FM_PRESETS = [
+  ["Aerobic (glc 10, O2 25)", "core", 25, 10],
+  ["Anaerobic (glc 10)", "core", 0, 10],
+  ["V&P aerobic (glc 10.5, O2 15)", "core", 15, 10.5],
+  ["V&P anaerobic (glc 18.5)", "core", 0, 18.5],
+];
+async function pFluxmap(v) {
+  const genes = await api("/api/core_genes");
+  v.innerHTML = head("Flux map", "Live FBA fluxes drawn on the E. coli core pathway map (Escher, BiGG layout). Arrow width and color follow flux magnitude and direction; switch presets or knock out a gene to watch overflow and fermentation reroute.") +
+    card("Condition", `
+      <div class="grid2">
+      <div><label class="field">Preset</label>
+      <select id="fmpreset">${FM_PRESETS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join("")}</select></div>
+      <div><label class="field">Knock out (optional)</label>
+      <select id="fmgene"><option value="">none</option>${genes.map(g => `<option>${g}</option>`).join("")}</select></div>
+      </div>
+      <div style="margin-top:10px"><button class="btn primary" id="fmdraw">Draw map</button></div>
+      <div class="metrics" style="margin-top:12px">
+        <div class="metric"><div class="l">Growth</div><div class="v" id="fmGrowth">-</div></div>
+        <div class="metric"><div class="l">Solve</div><div class="v" id="fmStatus">-</div></div>
+        <div class="metric"><div class="l">On map</div><div class="v" id="fmCount">-</div></div>
+      </div>`) +
+    card("Map", `<div id="escher-box"><div id="escher-map"></div></div><p class="muted" id="fmnote">Press Draw map.</p>`) +
+    card("Rerun", cmd("uv run uvicorn server:app --port 8123  # then open the Flux map page"));
+  document.getElementById("fmdraw").addEventListener("click", async () => {
+    const note = document.getElementById("fmnote");
+    note.textContent = "Solving and drawing…";
+    try {
+      const E = await escherReady();
+      const [, model, o2max, glc] = FM_PRESETS[+document.getElementById("fmpreset").value];
+      const gene = document.getElementById("fmgene").value;
+      const sol = await api(`/api/solve/fluxes?model=${model}&o2max=${o2max}&glc=${glc}&gene=${encodeURIComponent(gene)}`);
+      document.getElementById("fmGrowth").textContent = fmt(sol.growth, 4);
+      document.getElementById("fmStatus").textContent = sol.status;
+      if (!_escherBuilder) {
+        _escherBuilder = new E.Builder(_escherMap, null, null,
+          document.getElementById("escher-map"),
+          { menu: "zoom", enable_editing: false, fill_screen: false, scroll_behavior: "zoom" });
+      }
+      _escherBuilder.set_reaction_data(sol.fluxes);
+      const ids = new Set(Object.values(_escherMap[1].reactions).map(r => r.bigg_id));
+      const n = Object.keys(sol.fluxes).filter(k => ids.has(k)).length;
+      document.getElementById("fmCount").textContent = `${n} reactions`;
+      note.textContent = gene ? `Δ${gene}: compare against the no-KO preset to see rerouting.`
+        : "Negative fluxes run against the drawn arrow direction.";
+    } catch (e) { note.textContent = `Could not draw: ${e.message}`; }
+  });
+}
+
+const PAGES = { guide: pGuide, overview: pOverview, aerana: pAerana, carbon: pCarbon, o2lab: pO2lab, sampling: pSampling, dfba: pDfba, fluxmap: pFluxmap, genome: pGenome, network: pNetwork, anchor: pAnchor, ko: pKO, deletions: pDeletions, pfba: pPfba, subs: pSubs, repro: pRepro };
 
 function toast(msg, bad) {
   const t = document.createElement("div");

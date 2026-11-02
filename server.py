@@ -7,6 +7,8 @@ Open:
 """
 import json
 import threading
+import tempfile
+import urllib.request
 from pathlib import Path
 
 import cobra
@@ -19,10 +21,30 @@ from fastapi.staticfiles import StaticFiles
 from exp11_dfba import run_dfba, run_dfba_anaerobic
 from exp18_kla import run_dfba_kla
 
+# API-first models: nothing vendored in the repo. Files stream from the
+# BiGG API into the OS temp dir on first use (evict anytime to save space).
+BIGG_JSON = "https://bigg.ucsd.edu/api/v2/models/{id}/download"
+CACHE_DIR = Path(tempfile.gettempdir()) / "oxalis_cache"
+
 ROOT = Path(__file__).parent
 app = FastAPI(title="Oxalis", docs_url="/api/docs")
 _lock = threading.Lock()
 _models = {}
+
+
+def cached_model_file(model_id):
+    """Local BiGG JSON if present, else download to temp cache (shared)."""
+    local = ROOT / f"{model_id}.json"
+    if local.exists():
+        return str(local)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    dest = CACHE_DIR / f"{model_id}.json"
+    if not dest.exists():
+        try:
+            urllib.request.urlretrieve(BIGG_JSON.format(id=model_id), dest)
+        except Exception as e:
+            raise HTTPException(502, f"BiGG download failed: {e}")
+    return str(dest)
 
 
 def get_model(name):
@@ -31,7 +53,7 @@ def get_model(name):
     with _lock:
         if name not in _models:
             _models[name] = (cobra.io.load_model("textbook") if name == "core"
-                             else cobra.io.load_json_model(str(ROOT / "iML1515.json")))
+                             else cobra.io.load_json_model(cached_model_file("iML1515")))
         return _models[name].copy()
 
 
@@ -64,6 +86,7 @@ DATA_FILES = {
     "kink_summary": "kink_summary.csv",
     "kink_vectors": "kink_vectors.csv",
     "regulation_cost": "regulation_cost.csv",
+    "ec_compare": "ec_compare.csv",
 }
 
 
@@ -129,6 +152,27 @@ def solve_point(model: str = "core", o2max: float = 10.0, glc: float = 10.0):
     return _point(model, o2max, glc)
 
 
+@app.get("/api/solve/fluxes")
+def solve_fluxes(model: str = "core", o2max: float = 10.0, glc: float = 10.0,
+                 gene: str = ""):
+    """Full reaction flux vector for the Escher map page (BiGG ids)."""
+    m = get_model(model)  # fresh copy: KO + bound edits are per-request
+    with _lock:
+        if gene:
+            try:
+                m.genes.get_by_id(gene).knock_out()
+            except KeyError:
+                raise HTTPException(404, f"no such gene: {gene}")
+        m.reactions.EX_glc__D_e.lower_bound = -glc
+        m.reactions.EX_o2_e.lower_bound = -o2max
+        s = m.optimize()
+        if s.status != "optimal":
+            return {"status": s.status, "growth": 0.0, "fluxes": {}}
+        out = {rid: float(v) for rid, v in s.fluxes.items()}
+        return {"status": "ok", "growth": float(s.objective_value),
+                "fluxes": out}
+
+
 @app.get("/api/solve/sweep")
 def solve_sweep(model: str = "core", o2max: float = 25.0, step: float = 1.0):
     m = get_model(model)
@@ -167,7 +211,7 @@ def ko_live(gene: str, model: str = "core"):
 
 @app.get("/api/gene_names")
 def gene_names():
-    d = json.loads((ROOT / "iML1515.json").read_text())
+    d = json.loads(Path(cached_model_file("iML1515")).read_text())
     return {g["id"]: (g.get("name") or g["id"]) for g in d["genes"]}
 
 
