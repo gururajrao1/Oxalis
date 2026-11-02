@@ -1,0 +1,29 @@
+{
+ "milp_status": "optimal",
+ "kos": [],
+ "milp_succ": 9.35203041490377,
+ "forced_gnd_coupling_exact": true,
+ "forced_gnd_milp_env": 9.352030414903762,
+ "direct_gnd_env": 9.352030414903828,
+ "coupled": {
+  "WT": {
+   "core_growth": 0.21166294973531258,
+   "core_succ": 0.0,
+   "i1515_growth": 0.15753981693759,
+   "i1515_succ": 0.052562214682327454
+  },
+  "gnd": {
+   "core_growth": 0.2116629497353101,
+   "core_succ": 0.0,
+   "i1515_growth": 0.1575398169375909,
+   "i1515_succ": 0.052562214682328065
+  },
+  "pfkA+gnd": {
+   "core_growth": 0.2116629497353101,
+   "core_succ": 0.0,
+   "i1515_growth": 0.15753981693759322,
+   "i1515_succ": 0.05256221468233716
+  }
+ },
+ "method": "single-level MILP (growth-tolerant); WT envelope already reaches the max, so no KO is selected; true bilevel OptKnock needs a bilevel-capable solver"
+}

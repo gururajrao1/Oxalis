@@ -1,0 +1,23 @@
+{
+ "vmax_glc": 7.142857142857143,
+ "vmax_ac": 0.9645061728395065,
+ "o2cap": 14.285714285714286,
+ "kla_used": 400.0,
+ "kla_lower_bound": 200.0,
+ "loss": 0.010827290676279829,
+ "features": {
+  "ac_peak": 3.6885355719981225,
+  "t_ac_after_ge": 2.9499999999999993,
+  "X_ge": 1.2606397818059725,
+  "mu_exp": 0.5643215521914853,
+  "t_ge": 5.75,
+  "o2_min_frac": 0.7811977723998321
+ },
+ "targets": {
+  "ac_peak": 3.87,
+  "t_ac_after_ge": 3.0,
+  "X_ge": 1.16,
+  "mu_exp": 0.57
+ },
+ "provenance": "ac/X/t_ac: Enjalbert et al. 2013 PMC3901295; mu: feast-famine mSphere 2020 (0.57 h-1)"
+}

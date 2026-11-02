@@ -63,7 +63,18 @@ DATA_FILES = {
     "strain_doubles": "strain_doubles.csv",
     "kink_summary": "kink_summary.csv",
     "kink_vectors": "kink_vectors.csv",
+    "regulation_cost": "regulation_cost.csv",
 }
+
+
+@app.get("/api/kla_fit")
+def kla_fit():
+    return json.loads((ROOT / "kla_fit.json").read_text())
+
+
+@app.get("/api/strain_milp")
+def strain_milp():
+    return json.loads((ROOT / "strain_milp.json").read_text())
 
 
 @app.get("/api/carbon_accounting")

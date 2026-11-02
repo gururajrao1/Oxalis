@@ -188,8 +188,62 @@
   formate tracks PFL to 0, acetate 8.73->5.81. TCA engages at the kink.
 - Files: exp21_kink.py, kink_summary.csv, kink_vectors.csv
 
+## Exp 22: kLa + Monod fit to a real batch curve (Enjalbert 2013, MG1655 M9)
+- Targets: acetate peak 3.87 mM at GE (8.6% C), cleared ~3 h post-GE,
+  X~1.16 gDW/L at GE (PMC3901295); mu 0.57 h-1 (feast-famine mSphere 2020).
+- Fitted: vmax_glc=7.14, vmax_ac=0.96, o2cap=14.3 (cf V&P measured o2max=15),
+  kLa>=200 lower bound (DOT>20%; fit used 400). Loss 0.011: peak 3.69,
+  t_ac 2.95 h, mu 0.564, X_ge 1.26 (+9% residual = structural yield gap).
+- Recovery test: optimizer refits synthetic features but params sit on a
+  vmax_glc<->o2cap ridge (recovery [9.5,1.7,18] vs truth [8,2,15] at same
+  loss) -> report fitted values as ridge ranges, not points.
+- Files: exp22_kla_fit.py, kla_fit.json; API: /api/kla_fit
+
+## Exp 18 bugfix (found by the fit): O2 pool Euler was unstable + uncapped
+- Explicit update oscillated and clipped to phantom anaerobiosis for
+  kLa*dt>1 (default kLa=10/dt=0.05 was borderline at 0.5); no o2star cap
+  allowed supersaturation. Fix: semi-implicit update, clip [0,o2star],
+  explicit kLa=inf branch recovers fixed-cap. Default trajectory unchanged
+  in character (kLa=10 still goes microaerobic mid-batch).
+- Starvation handling (opt-in scavenge=True, defaults bit-identical):
+  max-growth LP goes INFEASIBLE when Monod-capped uptake cannot cover the
+  forced ATPM floor (pools froze with food left, e.g. ac stuck at 0.16 mM);
+  fallback is maintenance-first (max ATPM at LB 0, mu recorded 0) plus a
+  lexicographic max-uptake pass when mu<0.05 (LP degeneracy leaves dregs).
+
+## Exp 23: lactate regulation as imposed-bound cost accounting
+- Observed anaerobic lactate (lac:ac=0.3, JB 182; anchored via Y=0.023 to
+  3.76 mmol/g/h at q18.5) imposed: mu 0.4706->0.4550, cost 0.016 (3.3%).
+- fnr-deletion mimic (PFL to 10%, FRD off): mu 0.4706->0.4300, 8.6% defect,
+  directional match to reported anaerobic defect.
+- arcA-deletion mimic (full oxidative arm ICDHyr/AKGDH/SUCDi/MDH to 1.5x):
+  acetate 7.68->6.98 (9% cut, mu cost 0.016). ICDH alone bought only 3%:
+  derepression bounds alone do NOT reproduce the full reported low-acetate
+  phenotype -> needs global regulation beyond TCA bounds. All bounds imposed
+  by hand; model contributes cost accounting only.
+- Files: exp23_regulation.py, regulation_cost.csv (API: /api/data/regulation_cost)
+
+## Exp 24: MILP knockout selection on an open solver (GLPK) + 1515 check
+- Single-level MILP (binary KO vars, exact GPR OR-logic, big-M coupling,
+  card<=2, growth floor 50%): verified machinery (forced-gnd KO zeroes GND,
+  MILP envelope == direct envelope 9.352) and it selects NO knockouts —
+  the WT envelope already reaches 9.352. Single-level max-product cannot
+  distinguish KO strains from WT-at-reduced-growth: this is exactly why
+  bilevel OptKnock is needed (still needs a bilevel-capable solver).
+- Growth-coupled validation at max-growth optimum: core succinate 0.000
+  (WT, gnd, pfkA+gnd); 1515 succinate 0.053 in ALL sets incl. WT (background
+  reductive-branch trickle, not KO-induced; GND flux already 0 anaerobically
+  so gnd KO is a no-op at the optimum). No growth-coupled succinate found.
+- BUGFIXES (mine): optlang vars must come from model.solver.interface (not
+  optlang.interface); MILP needs BOTH z+y<=1 and z+sum(y)>=1 links or z
+  floats to 0 for free; cobra Solution must be checked via .status, never
+  `== "optimal"`.
+- Files: exp24_strain_milp.py, strain_milp.json; API: /api/strain_milp
+
 ## TODO (next)
-- Fit kLa + Monod constants to a real batch OD/acetate curve.
-- Lactate regulation: arcA/fnr-aware constraints or proteomics-backed bounds.
-- MILP strain design (OptKnock/ROOM/gene-protein-reaction-aware) with an
-  open solver; growth-coupled succinate validation in 1515.
+- Same-medium full time-course (OD/glc/ac at several time points) to turn
+  the 4-feature fit into a real curve fit.
+- Proteomics-backed bounds (e.g. Schmidt 2016) instead of hand-set
+  regulation scenarios.
+- Bilevel OptKnock with a bilevel-capable open solver (e.g. HiGHS/CBC
+  bindings) for provably growth-coupled designs.
